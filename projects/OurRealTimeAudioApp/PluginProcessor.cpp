@@ -1,66 +1,32 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+#include <algorithm>
+#include <cmath>
+
+#include "math/constants.h"
+#include "math/fft.h"
+
 static const std::vector<mrta::ParameterInfo> ParameterInfos
 {
-    { Param::ID::Enabled,   Param::Name::Enabled,   "Off", "On", true },
-    { Param::ID::Drive,     Param::Name::Drive,     "", 1.f, 1.f, 10.f, 0.1f, 1.f },
-    { Param::ID::Frequency, Param::Name::Frequency, "Hz", 1000.f, 20.f, 20000.f, 1.f, 0.3f },
-    { Param::ID::Resonance, Param::Name::Resonance, "", 0.f, 0.f, 1.f, 0.001f, 1.f },
-    { Param::ID::Mode,      Param::Name::Mode,      { "LPF12", "HPF12", "BPF12", "LPF24", "HPF24", "BPF24" }, 3 },
     { Param::ID::PostGain,  Param::Name::PostGain,  "dB", 0.0f, -60.f, 12.f, 0.1f, 3.8018f },
 };
 
 MainProcessor::MainProcessor() :
-    mrta::BaseProcessor(ParameterInfos)
+    mrta::BaseProcessor(ParameterInfos),
+    pitchDetector({ .framerate = 44100.0f }),
+    ibuff(1)
 {
-    registerParameterCallback(Param::ID::Enabled,
-        [this] (float value, bool /*forced*/)
-        {
-            DBG(Param::Name::Enabled + ": " + juce::String { value });
-            filter.setEnabled(value > 0.5f);
-        });
-
-    registerParameterCallback(Param::ID::Drive,
-        [this] (float value, bool /*forced*/)
-        {
-            DBG(Param::Name::Drive + ": " + juce::String { value });
-            filter.setDrive(value);
-        });
-
-    registerParameterCallback(Param::ID::Frequency,
-        [this] (float value, bool /*forced*/)
-        {
-            DBG(Param::Name::Frequency + ": " + juce::String { value });
-            filter.setCutoffFrequencyHz(value);
-        });
-
-    registerParameterCallback(Param::ID::Resonance,
-        [this] (float value, bool /*forced*/)
-        {
-            DBG(Param::Name::Resonance + ": " + juce::String { value });
-            filter.setResonance(value);
-        });
-
-    registerParameterCallback(Param::ID::Mode,
-        [this] (float value, bool /*forced*/)
-        {
-            DBG(Param::Name::Mode + ": " + juce::String { value });
-            filter.setMode(static_cast<juce::dsp::LadderFilter<float>::Mode>(std::floor(value)));
-        });
+    math::init_fft(18);
 
     registerParameterCallback(Param::ID::PostGain,
         [this] (float value, bool forced)
         {
             DBG(Param::Name::PostGain + ": " + juce::String { value });
             float dbValue { 0.f };
-            if (value > -60.f)
-            dbValue = std::pow(10.f, value * 0.05f);
+            if (value > -60.f) dbValue = std::pow(10.f, value * 0.05f);
+            gain = dbValue;
 
-            if (forced)
-                outputGain.setCurrentAndTargetValue(dbValue);
-            else
-                outputGain.setTargetValue(dbValue);
         });
 }
 
@@ -71,21 +37,37 @@ MainProcessor::~MainProcessor()
 void MainProcessor::prepare(double sampleRate, int samplesPerBlock)
 {
     juce::uint32 numChannels { static_cast<juce::uint32>(std::max(getMainBusNumInputChannels(), getMainBusNumOutputChannels())) };
-    filter.prepare({ sampleRate, static_cast<juce::uint32>(samplesPerBlock), numChannels });
-    outputGain.reset(sampleRate, 0.01f);
+    
+    pitchDetector.prepare({ .framerate = (float)sampleRate });
+
+    int radius = pitchDetector.get_reguired_buffer_radius()+ 1;
+    
+    ibuff.resize(radius * 2, 0.0f);
+    ibuff.set_offset(radius);
 }
 
 void MainProcessor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& /*midiMessages*/)
 {
     juce::ScopedNoDenormals noDenormals;
 
-    {
-        juce::dsp::AudioBlock<float> audioBlock(buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples());
-        juce::dsp::ProcessContextReplacing<float> ctx(audioBlock);
-        filter.process(ctx);
-    }
+    int n = buffer.getNumSamples();
+    int m = std::min(buffer.getNumChannels(), 2);
+    const float *x = buffer.getReadPointer(0);
 
-    outputGain.applyGain(buffer, buffer.getNumSamples());
+    float ifs = 1.0f / (float)getSampleRate();
+
+    for(int i=0; i<n; i++){
+        ibuff.push(x[i]);
+        pitchDetector.update_period(&ibuff[0]);
+
+        if(pitchDetector.isVoiced){
+            phaseState = std::fmod(phaseState + pitchDetector.pitch * ifs * 2 * PI, 2 * PI);
+        }
+
+        float sample = std::max(-1.0f, std::min<float>(1.0f, std::sin(phaseState) * gain));
+
+        for(int j=0; j<m; j++) buffer.getWritePointer(j)[i] = sample;
+    }
 }
 
 juce::AudioProcessorEditor* MainProcessor::createEditor()

@@ -50,7 +50,7 @@ function(add_plugin target)
         IS_SYNTH ${AP_SYNTH}
         NEEDS_MIDI_INPUT ${AP_SYNTH}
         NEEDS_MIDI_OUTPUT FALSE
-        COPY_PLUGIN_AFTER_BUILD TRUE
+        COPY_PLUGIN_AFTER_BUILD FALSE
     )
 
     # Add parameter utils
@@ -76,7 +76,7 @@ function(add_plugin target)
     # C++ 17
     target_compile_features(${target}
         PUBLIC
-            cxx_std_17
+            cxx_std_20
     )
 
     target_compile_definitions(${target}

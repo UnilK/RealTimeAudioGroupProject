@@ -39,5 +39,11 @@ add_plugin(ortaa
     SOURCES
         ${ortaa_source}/PluginEditor.cpp
         ${ortaa_source}/PluginProcessor.cpp
+        ${ortaa_source}/math/commonMath.cpp
+        ${ortaa_source}/math/fft-impl.cpp
+        ${ortaa_source}/math/fft.cpp
+        ${ortaa_source}/dsp/pitch.cpp
     INCLUDE_DIRS
-        ${ortaa_source})
+        ${ortaa_source}
+        ${ortaa_source}/math
+        ${ortaa_source}/dsp)
