@@ -4,6 +4,7 @@
 
 #include <BaseProcessor.h>
 #include "dsp/pitch.h"
+#include "dsp/psola.h"
 #include "dsp/rbuffer.h"
 
 namespace Param
@@ -11,11 +12,13 @@ namespace Param
     namespace ID
     {
         static const juce::String PostGain { "post_gain" };
+        static const juce::String PitchShift { "pitch_shift" };
     }
 
     namespace Name
     {
         static const juce::String PostGain { "Post-Gain" };
+        static const juce::String PitchShift { "Pitch Shift" };
     }
 }
 
@@ -36,10 +39,11 @@ public:
 
 private:
     dsp::PitchDetector pitchDetector;
+    dsp::PSolaShifter psolaShifter;
     dsp::rbuffer<float> ibuff;
 
     float gain = 1.0f;
-    double phaseState = 0.0f;
+    float pitchShift = 1.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainProcessor)
 };
