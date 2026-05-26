@@ -9,6 +9,7 @@ template<typename F>
 class Ramp
 {
 public:
+    // Default ramp time of 50ms
     static constexpr F DefaultRampTime { static_cast<F>(0.05) };
 
     static_assert(std::is_floating_point<F>::value, "Only supports floating point!");
@@ -19,15 +20,21 @@ public:
 
     ~Ramp() { }
 
+    // Default ctor
     Ramp() :
         rampTime { DefaultRampTime }
     { }
 
+    // No copy semantics
     Ramp(const Ramp&) = delete;
     const Ramp& operator=(const Ramp&) = delete;
+
+    // No move semantics
     Ramp(Ramp&&) = delete;
     const Ramp& operator=(Ramp&&) = delete;
 
+    // Update sample rate of the ramp time, optionally allowing to
+    // skip to ramp value
     void prepare(double newSampleRate, bool skipRamp = false, F skipRampToValue = static_cast<F>(0))
     {
         sampleRate = newSampleRate;
@@ -37,6 +44,8 @@ public:
             setTarget(targetValue);
     }
 
+    // Set the target value to the ramp
+    // optionally allowing to skip the ramp
     void setTarget(F newTargetValue, bool skipRamp = false)
     {
         if (std::abs(newTargetValue - currentValue) > minDelta)
@@ -49,11 +58,13 @@ public:
             currentValue = targetValue = newTargetValue;
     }
 
+    // Set new ramp time
     void setRampTime(F newRampTimeSec)
     {
         rampTime = std::fmax(newRampTimeSec, 0.f);
     }
 
+    // Apply summing ramp to a single sample in-place
     void applySum(F* buffers, unsigned int numChannels)
     {
         const F targetDelta { std::fabs(targetValue - currentValue) };
@@ -66,6 +77,7 @@ public:
             buffers[ch] += currentValue;
     }
 
+    // Apply summing ramp to an audio buffer in-place
     void applySum(F* const* buffers, unsigned int numChannels, unsigned int numSamples)
     {
         for (unsigned int n = 0; n < numSamples; ++n)
@@ -81,6 +93,7 @@ public:
         }
     }
 
+    // Apply summing ramp to an audio buffer out-of-place
     void applySum(F* const* output, const F* const* input, unsigned int numChannels, unsigned int numSamples)
     {
         for (unsigned int n = 0; n < numSamples; ++n)
@@ -96,6 +109,7 @@ public:
         }
     }
 
+    // Apply gain ramp to an audio buffer in-place for single sample
     void applyGain(F* buffers, unsigned int numChannels)
     {
         const F targetDelta { std::fabs(targetValue - currentValue) };
@@ -108,6 +122,7 @@ public:
             buffers[ch] *= currentValue;
     }
 
+    // Apply gain ramp to an audio buffer in-place
     void applyGain(F* const* buffers, unsigned int numChannels, unsigned int numSamples)
     {
         for (unsigned int n = 0; n < numSamples; ++n)
@@ -123,6 +138,7 @@ public:
         }
     }
 
+    // Apply gain ramp to an audio buffer out-of-place
     void applyGain(F* const* output, const F* const* input, unsigned int numChannels, unsigned int numSamples)
     {
         for (unsigned int n = 0; n < numSamples; ++n)
@@ -149,15 +165,18 @@ public:
         return currentValue;
     }
 
-    static constexpr F minRampTime { static_cast<F>(1e-3) };
-    static constexpr F minDelta    { static_cast<F>(1e-9) };
+    // Minimum ramp time in secondes
+    static constexpr F minRampTime { static_cast<F>(1e-3) }; // 1ms
+
+    // Minimun absolute differente between target and current value
+    static constexpr F minDelta { static_cast<F>(1e-9) };
 
 private:
     double sampleRate { 48000.0 };
     F rampTime;
-    F rampStep    { static_cast<F>(0) };
+    F rampStep { static_cast<F>(0) };
     F targetValue { static_cast<F>(0) };
-    F currentValue{ static_cast<F>(0) };
+    F currentValue { static_cast<F>(0) };
 };
 
 }

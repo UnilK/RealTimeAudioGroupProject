@@ -155,6 +155,36 @@ void MainProcessor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& 
         buffer.addFrom(ch, 0, bpfOutBuffer, ch, 0, n);
         buffer.addFrom(ch, 0, hpfOutBuffer, ch, 0, n);
     }
+
+    freqInBuffer.clear();
+    resoInBuffer.clear();
+    lpfOutBuffer.clear();
+    bpfOutBuffer.clear();
+    hpfOutBuffer.clear();
+
+    freqRamp.applySum(freqInBuffer.getWritePointer(0), n);
+    resoRamp.applySum(resoInBuffer.getWritePointer(0), n);
+
+    svf.process(lpfOutBuffer.getWritePointer(0),
+                    bpfOutBuffer.getWritePointer(0),
+                    hpfOutBuffer.getWritePointer(0),
+                    buffer.getReadPointer(0),
+                    freqInBuffer.getReadPointer(0),
+                    resoInBuffer.getReadPointer(0),
+                    n);
+
+    lpfRamp.applyGain(lpfOutBuffer.getArrayOfWritePointers(), m, n);
+    bpfRamp.applyGain(bpfOutBuffer.getArrayOfWritePointers(), m, n);
+    hpfRamp.applyGain(hpfOutBuffer.getArrayOfWritePointers(), m, n);
+    buffer.clear();
+
+    for (int ch = 0; ch < m; ++ch)
+    {
+        buffer.addFrom(ch, 0, lpfOutBuffer, ch, 0, n);
+        buffer.addFrom(ch, 0, bpfOutBuffer, ch, 0, n);
+        buffer.addFrom(ch, 0, hpfOutBuffer, ch, 0, n);
+    }
+
 }
 
 juce::AudioProcessorEditor* MainProcessor::createEditor()
