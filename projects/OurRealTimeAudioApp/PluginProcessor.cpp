@@ -2,6 +2,8 @@
 #include "PluginEditor.h"
 #include <algorithm>
 #include <cmath>
+
+#include "math/constants.h"
 #include "math/fft.h"
 
 static void modeMix(float mode, float& lpf, float& bpf, float& hpf)
