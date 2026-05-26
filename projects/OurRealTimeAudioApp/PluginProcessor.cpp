@@ -111,6 +111,8 @@ void MainProcessor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& 
 
     float ifs = 1.0f / (float)getSampleRate();
 
+    static double phaseState = 0.0;
+
     for(int i=0; i<n; i++){
         ibuff.push(x[i]);
         pitchDetector.update_period(&ibuff[0]);
