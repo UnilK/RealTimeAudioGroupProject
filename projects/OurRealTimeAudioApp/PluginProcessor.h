@@ -98,24 +98,5 @@ private:
     juce::AudioBuffer<float> bpfOutBuffer;
     juce::AudioBuffer<float> hpfOutBuffer;
 
-    dsp::StateVariableFilter svf;
-
-    float mode { 0.5f };
-    float reso { 0.7071f };
-    float freqHz { 1000.f };
-
-    dsp::Ramp<float> freqRamp;
-    dsp::Ramp<float> resoRamp;
-    dsp::Ramp<float> lpfRamp;
-    dsp::Ramp<float> bpfRamp;
-    dsp::Ramp<float> hpfRamp;
-
-    juce::AudioBuffer<float> freqInBuffer;
-    juce::AudioBuffer<float> resoInBuffer;
-
-    juce::AudioBuffer<float> lpfOutBuffer;
-    juce::AudioBuffer<float> bpfOutBuffer;
-    juce::AudioBuffer<float> hpfOutBuffer;
-
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainProcessor)
 };
