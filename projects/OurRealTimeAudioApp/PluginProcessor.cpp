@@ -112,7 +112,6 @@ void MainProcessor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& 
     const float *x = buffer.getReadPointer(0);
 
     float ifs = 1.0f / (float)getSampleRate();
-
     static double phaseState = 0.0;
 
     for(int i=0; i<n; i++){

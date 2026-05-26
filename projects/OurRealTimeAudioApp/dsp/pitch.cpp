@@ -47,6 +47,7 @@ void PitchDetector::prepare(const PitchDetectorConstructor& ctr){
     assert(ctr.minPitchHz < ctr.maxPitchHz);
 
     framerate = ctr.framerate;
+    halfRate = 1.0f / (framerate * ctr.halfTime);
     pop = std::max<int>(8, std::ceil(ctr.framerate / (ctr.popWidth * 2)));
     min = std::floor(ctr.framerate / ctr.maxPitchHz);
     max = std::ceil(ctr.framerate / ctr.minPitchHz);
@@ -67,7 +68,7 @@ void PitchDetector::prepare(const PitchDetectorConstructor& ctr){
     y.resize(2*m);
     ix.resize(n);
     iy.resize(n);
-    mse = &x[2*pop];
+    mse.resize(n);
 }
 
 int PitchDetector::get_reguired_buffer_radius(){
@@ -94,9 +95,11 @@ void PitchDetector::update_period(const float* bufferCenter){
             n, m,
             &ix[0], &iy[0],
             &x[0], &y[0]);
-
+    
     float best = 1.0f;
-    int top = pop;
+    top = pop;
+
+    for(int i=0; i<=max; i++) mse[i] = x[i+2*pop] + (float)i / max * 0.1f;
 
     for(int i=min+1; i+1<=max; i++){
         if(mse[i] < best && mse[i] < mse[i-1] && mse[i] < mse[i+1]){

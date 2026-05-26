@@ -42,20 +42,19 @@ struct PitchDetectorConstructor {
     float periodCalcFrequency = 400.0f;
     float defaultPitch = 200.0f;
     float voicedLimit = 0.9f;
+    float halfTime = 0.0225f;
 };
 
 class PitchDetector {
 
+public:
     int n, m;
-    std::vector<float> ix, iy, x, y;
-    float *mse;
+    std::vector<float> ix, iy, x, y, mse;
 
     int min, max, pop;
     float voicedLimit, framerate;
 
     Ticker clock;
-
-public:
 
     PitchDetector(const PitchDetectorConstructor& ctr);
 
@@ -67,10 +66,9 @@ public:
     // The buffer is indexed from bufferCenter[-radius] to bufferCenter[radius-1]
     void update_period(const float* bufferCenter);
 
-    int period;
+    int period, top;
     float similarity, pitch, stablePeriod, halfRate;
     bool isVoiced = false;
-    
 };
 
 }
