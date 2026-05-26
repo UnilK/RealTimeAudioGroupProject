@@ -32,8 +32,8 @@ set(ortaa_source ${CMAKE_CURRENT_SOURCE_DIR}/projects/OurRealTimeAudioApp)
 
 add_plugin(ortaa
     VERSION 0.1.0
-    PLUGIN_NAME "Harmonizer2"
-    PROD_NAME Harmonizer2
+    PLUGIN_NAME "Harmonizer"
+    PROD_NAME Harmonizer
     PROD_CODE Harm
     SYNTH FALSE
     SOURCES
@@ -44,6 +44,7 @@ add_plugin(ortaa
         ${ortaa_source}/math/fft.cpp
         ${ortaa_source}/dsp/pitch.cpp
         ${ortaa_source}/dsp/psola.cpp
+        ${ortaa_source}/dsp/StateVariableFilter.cpp
     INCLUDE_DIRS
         ${ortaa_source}
         ${ortaa_source}/math

@@ -1,137 +1,138 @@
-/*
- * PSOLA (Pitch Synchronous Overlap-Add) Pitch Shifter
- * Copyright (C) 2024
- */
-
 #include "dsp/psola.h"
 #include <cmath>
 #include <algorithm>
-#include <cassert>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+static constexpr int MIN_TRUSTED_PERIOD = 80;
 
 namespace dsp {
 
-PSolaShifter::PSolaShifter()
-    : analysisBuffer(8192, 0.0f),
-      synthesisBuffer(8192, 0.0f),
-      windowedFrame(4096, 0.0f),
-      resampledFrame(4096, 0.0f),
-      hannWindow(4096, 0.0f)
+void PSolaShifter::prepare(double /*sampleRate*/, int maxGrainSize)
 {
+    maxGrain = maxGrainSize;
+    bufLen   = maxGrain * 8;
+
+    inBuf .assign(bufLen, 0.0f);
+    outBuf.assign(bufLen, 0.0f);
+    grain .assign(maxGrain, 0.0f);
+
+    inPos            = 0;
+    outPos           = 0;
+    sampleCount      = 0.0;
+    synPos           = 0.0;
+    synInit          = false;
+    markCount        = 0;
+    for (int i = 0; i < PERIOD_HIST_N; ++i) periodHist[i] = 0;
+    periodHistIdx    = 0;
+    periodLastSeen   = 0;
+    voiceStrength    = 0.0f;
+    smoothPitchShift = 1.0f;
 }
 
-void PSolaShifter::prepare(double sampleRate, int maxFrameSize)
+static inline float hannWindow(int i, int grainSize)
 {
-    this->sampleRate = sampleRate;
-    this->maxFrameSize = maxFrameSize;
-    this->anaBufferSize = maxFrameSize * 2;
-
-    analysisBuffer.assign(anaBufferSize, 0.0f);
-    synthesisBuffer.assign(anaBufferSize, 0.0f);
-    windowedFrame.assign(maxFrameSize, 0.0f);
-    resampledFrame.assign(maxFrameSize, 0.0f);
-
-    analysisBufferIndex = 0;
-    synthesisBufferIndex = 0;
-    synthesisPhase = 0.0;
-    frameCounter = 0;  
+    if (grainSize < 2) return 0.0f;
+    return 0.5f * (1.0f - std::cos(2.0f * (float)M_PI * (float)i
+                                       / (float)(grainSize - 1)));
 }
 
-void PSolaShifter::fillAnalysisBuffer(float sample)
+void PSolaShifter::extractGrain(int grainSize)
 {
-    analysisBuffer[analysisBufferIndex] = sample;
-    analysisBufferIndex = (analysisBufferIndex + 1) % anaBufferSize;
-}
-
-void PSolaShifter::extractAnalysisFrame(int pitchPeriod)
-{
-    int frameSize = std::min(pitchPeriod * 2, maxFrameSize);
-    frameSize = std::max(frameSize, 64);
-
-    int startIdx = (analysisBufferIndex - frameSize / 2 + anaBufferSize) % anaBufferSize;
-
-    for (int i = 0; i < frameSize; ++i)
+    int start = inPos - grainSize;
+    for (int i = 0; i < grainSize; ++i)
     {
-        int idx = (startIdx + i) % anaBufferSize;
-        float w = 0.5f * (1.0f - std::cos(2.0f * M_PI * i / (frameSize - 1)));
-        windowedFrame[i] = analysisBuffer[idx] * w;
+        float w   = hannWindow(i, grainSize);
+        int   idx = ((start + i) % bufLen + bufLen) % bufLen;
+        grain[i]  = inBuf[idx] * w;
     }
-
-    // zero out the rest
-    for (int i = frameSize; i < maxFrameSize; ++i)
-        windowedFrame[i] = 0.0f;
 }
 
-void PSolaShifter::resampleFrame(float pitchShift, int pitchPeriod)
+void PSolaShifter::placeGrain(int center, int grainSize)
 {
-    // Resample the windowed frame based on pitch shift
-    int inputFrameSize = std::min(static_cast<int>(windowedFrame.size()), pitchPeriod * 2);
-    inputFrameSize = std::max(inputFrameSize, 64);
-
-    int outputFrameSize = std::max(1, static_cast<int>(inputFrameSize / pitchShift));
-    outputFrameSize = std::min(outputFrameSize, maxFrameSize);
-
-    // Linear interpolation resampling
-    for (int i = 0; i < outputFrameSize; ++i) {
-        float srcIdx = i * pitchShift;
-        int idx = static_cast<int>(srcIdx);
-        float frac = srcIdx - idx;
-
-        if (idx + 1 < inputFrameSize) {
-            resampledFrame[i] = windowedFrame[idx] * (1.0f - frac) +
-                                windowedFrame[idx + 1] * frac;
-        } else if (idx < inputFrameSize) {
-            resampledFrame[i] = windowedFrame[idx];
-        } else {
-            resampledFrame[i] = 0.0f;
-        }
-    }
-
-    // Zero out rest of buffer
-    for (int i = outputFrameSize; i < static_cast<int>(resampledFrame.size()); ++i) {
-        resampledFrame[i] = 0.0f;
-    }
-
-    lastPitchShift = pitchShift;
-}
-
-void PSolaShifter::overlapAdd()
-{
-    int inputFrameSize = std::min(lastPitchPeriod * 2, maxFrameSize);
-    inputFrameSize = std::max(inputFrameSize, 64);
-
-    int synthFrameSize = std::max(1, static_cast<int>(inputFrameSize / lastPitchShift));
-    synthFrameSize = std::min(synthFrameSize, maxFrameSize);
-
-    for (int i = 0; i < synthFrameSize; ++i)
-        synthesisBuffer[(synthesisBufferIndex + i) % anaBufferSize] += resampledFrame[i];
-}
-
-float PSolaShifter::process(float inputSample, float pitchShift, int pitchPeriod, bool isVoiced)
-{
-    if (!std::isfinite(pitchShift)) pitchShift = 1.0f;
-    pitchShift = std::max(0.5f, std::min(2.0f, pitchShift));
-    pitchPeriod = std::max(20, std::min(pitchPeriod, maxFrameSize / 2)); // ← cap to half buffer
-
-    fillAnalysisBuffer(inputSample);
-    lastPitchPeriod = pitchPeriod;
-
-    // removed local declaration — frameCounter is now a member
-    frameCounter++;
-    if (frameCounter >= pitchPeriod)
+    int start = center - grainSize / 2;
+    for (int i = 0; i < grainSize; ++i)
     {
-        frameCounter = 0;
-        if (pitchShift > 0.0f)
+        int idx = ((start + i) % bufLen + bufLen) % bufLen;
+        outBuf[idx] += grain[i];
+    }
+}
+
+float PSolaShifter::process(float input, float pitchShift, int period, bool voiced)
+{
+    const int rawPeriod = period;
+
+    pitchShift = std::max(0.25f, std::min(pitchShift, 4.0f)); // Limit to +-2 octaves.
+    smoothPitchShift += (pitchShift - smoothPitchShift) * 0.005f;
+    pitchShift = smoothPitchShift;
+
+    period = std::max(MIN_TRUSTED_PERIOD, std::min(period, maxGrain / 4)); // Limit period to a reasonable range.
+
+    if (rawPeriod < MIN_TRUSTED_PERIOD) voiced = false;
+
+    // Median filter on the detected period rejects octave errors.
+    if (period != periodLastSeen && period > 0)
+    {
+        periodHist[periodHistIdx] = period;
+        periodHistIdx = (periodHistIdx + 1) % PERIOD_HIST_N;
+        periodLastSeen = period;
+    }
+    {
+        int sorted[PERIOD_HIST_N];
+        for (int i = 0; i < PERIOD_HIST_N; ++i)
+            sorted[i] = (periodHist[i] > 0) ? periodHist[i] : period;
+        std::sort(sorted, sorted + PERIOD_HIST_N);
+        period = sorted[PERIOD_HIST_N / 2];
+    }
+
+    // grainSize = 2*hop  ->  50% Hann overlap
+    const double hop       = (double)period / pitchShift; // hop is fractional 
+    const int    grainSize = std::min(maxGrain, std::max(8, 2 * (int)std::ceil(hop)));
+
+    inBuf[inPos] = input;
+    inPos = (inPos + 1) % bufLen;
+
+    // 
+    if (!voiced) 
+    {
+        markCount = 0;
+        synInit   = false;
+        for (int i = 0; i < PERIOD_HIST_N; ++i) periodHist[i] = 0;
+        periodLastSeen = 0;
+    }
+    else if (++markCount >= period)
+    {
+        markCount -= period;
+
+        const double writeAhead = grainSize * 0.5;
+        if (!synInit || synPos < sampleCount + writeAhead)
         {
-            extractAnalysisFrame(pitchPeriod);
-            resampleFrame(pitchShift, pitchPeriod);
-            overlapAdd();
+            synPos  = sampleCount + writeAhead;
+            synInit = true;
+        }
+
+        extractGrain(grainSize);
+
+        while (synPos < sampleCount + writeAhead + (double)period)
+        {
+            int center = (int)(std::llround(synPos) % (long long)bufLen); 
+            if (center < 0) center += bufLen;
+            placeGrain(center, grainSize);
+            synPos += hop;
         }
     }
 
-    float output = synthesisBuffer[synthesisBufferIndex];
-    synthesisBuffer[synthesisBufferIndex] = 0.0f;
-    synthesisBufferIndex = (synthesisBufferIndex + 1) % anaBufferSize;
+    float out = outBuf[outPos];
+    outBuf[outPos] = 0.0f;
+    outPos = (outPos + 1) % bufLen;
+    sampleCount += 1.0;
 
-    return output;
+    // Smooth crossfade between dry (unvoiced) and harmony (voiced).
+    const float targetVoice = voiced ? 1.0f : 0.0f;
+    voiceStrength += (targetVoice - voiceStrength) * 0.005f;
+    return voiceStrength * out + (1.0f - voiceStrength) * input;
 }
+
 } // namespace dsp

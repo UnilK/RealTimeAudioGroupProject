@@ -1,70 +1,40 @@
-/*
- * PSOLA (Pitch Synchronous Overlap-Add) Pitch Shifter
- * Copyright (C) 2024
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in
- * all copies or substantial portions of the Software.
- */
-
 #pragma once
-
 #include <vector>
-#include <cstddef>
 
 namespace dsp {
 
 class PSolaShifter {
 public:
-    PSolaShifter();
-    ~PSolaShifter() = default;
+    void prepare(double sampleRate, int maxGrain = 4096);
 
-    // Prepare the shifter with sample rate and max frame size
-    void prepare(double sampleRate, int maxFrameSize = 4096);
-
-    // Process a single sample with pitch shifting
-    // pitchShift: factor to shift pitch (1.0 = no shift, 2.0 = up octave, 0.5 = down octave)
-    // pitchPeriod: detected fundamental period in samples
-    // isVoiced: whether the current frame is voiced
-    float process(float inputSample, float pitchShift, int pitchPeriod, bool isVoiced);
-
-    // Get the current analysis buffer center position
-    const float* getAnalysisBuffer() const { return analysisBuffer.data(); }
-    int getAnalysisBufferSize() const { return analysisBuffer.size(); }
+    // pitchShift is a frequency ratio (1.0 = no change, 2.0 = +1 octave).
+    float process(float input, float pitchShift, int period, bool voiced);
 
 private:
-    // Internal buffers
-    std::vector<float> analysisBuffer;      // Input analysis buffer
-    std::vector<float> synthesisBuffer;     // Output synthesis buffer
-    std::vector<float> windowedFrame;       // Windowed analysis frame
-    std::vector<float> resampledFrame;      // Resampled frame for synthesis
-    std::vector<float> hannWindow;          // Hann window for PSOLA
+    int bufLen   = 0;
+    int maxGrain = 0;
 
-    // State variables
-    int analysisBufferIndex = 0;
-    int synthesisBufferIndex = 0;
-    double synthesisPhase = 0.0;            // Phase accumulator for synthesis
-    int lastPitchPeriod = 80;               // Default pitch period (~500Hz at 44.1kHz)
-    float lastPitchShift = 1.0f;
+    std::vector<float> inBuf;
+    std::vector<float> outBuf;
+    std::vector<float> grain;
 
-    double sampleRate = 44100.0;
-    int maxFrameSize = 4096;
-    int anaBufferSize = 8192;
+    int    inPos       = 0;
+    int    outPos      = 0;
+    double sampleCount = 0.0;   // absolute read position, never wraps
+    double synPos      = 0.0;   // absolute position of next grain centre
+    bool   synInit     = false;
+    int    markCount   = 0;
 
-    int frameCounter { 0 };
+    void extractGrain(int grainSize);
+    void placeGrain(int center, int grainSize);
 
-    // Helper functions
-    void fillAnalysisBuffer(float sample);
-    void extractAnalysisFrame(int pitchPeriod);
-    void resampleFrame(float pitchShift, int pitchPeriod);
-    void applyHannWindow(std::vector<float>& frame, int size);
-    void overlapAdd();
+    static constexpr int PERIOD_HIST_N = 5;
+    int periodHist[PERIOD_HIST_N] = {0,0,0,0,0};
+    int periodHistIdx  = 0;
+    int periodLastSeen = 0;
+
+    float voiceStrength    = 0.0f;
+    float smoothPitchShift = 1.0f;
 };
 
 } // namespace dsp
