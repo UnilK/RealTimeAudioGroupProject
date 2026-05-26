@@ -4,7 +4,10 @@
 
 #include <BaseProcessor.h>
 #include "dsp/pitch.h"
+#include "dsp/psola.h"
 #include "dsp/rbuffer.h"
+#include "dsp/StateVariableFilter.h"
+#include "dsp/Ramp.h"
 
 #include "StateVariableFilter.h"
 #include "Ramp.h"
@@ -13,18 +16,22 @@ namespace Param
 {
     namespace ID
     {
-        static const juce::String PostGain { "post_gain" };
-        static const juce::String Freq { "freq" };
-        static const juce::String Reso { "reso" };
-        static const juce::String Mode { "mode" };
+        static const juce::String PostGain   { "post_gain" };
+        static const juce::String PitchShift { "pitch_shift" };
+        static const juce::String HarmonyMix { "harmony_mix" };
+        static const juce::String Freq       { "freq" };
+        static const juce::String Reso       { "reso" };
+        static const juce::String Mode       { "mode" };
     }
 
     namespace Name
     {
-        static const juce::String PostGain { "Post-Gain" };
-        static const juce::String Freq { "Frequency" };
-        static const juce::String Reso { "Resonance" };
-        static const juce::String Mode { "Mode" };
+        static const juce::String PostGain   { "Post-Gain" };
+        static const juce::String PitchShift { "Pitch Shift" };
+        static const juce::String HarmonyMix { "Harmony Mix" };
+        static const juce::String Freq       { "Frequency" };
+        static const juce::String Reso       { "Resonance" };
+        static const juce::String Mode       { "Mode" };
     }
 
     namespace Unit
@@ -58,21 +65,38 @@ public:
     MainProcessor();
     ~MainProcessor() override;
 
-    // Called before processing starts
     void prepare(double sampleRate, int samplesPerBlock) override;
-
-    // Audio stream callback
     void process(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
-
-    // Creates the GUI
     juce::AudioProcessorEditor* createEditor() override;
 
 private:
-    dsp::PitchDetector pitchDetector;
+    // Harmonizer
+    dsp::PitchDetector  pitchDetector;
+    dsp::PSolaShifter   psolaShifter;
     dsp::rbuffer<float> ibuff;
 
-    float gain = 1.0f;
-    double phaseState = 0.0f;
+    float gain       = 1.0f;
+    float pitchShift = 1.0f;
+    float harmonyMix = 0.75f;
+
+    // Filter
+    dsp::StateVariableFilter svf;
+
+    float mode   { 0.f };
+    float reso   { 1.0f };
+    float freqHz { 500.f };
+
+    dsp::Ramp<float> freqRamp;
+    dsp::Ramp<float> resoRamp;
+    dsp::Ramp<float> lpfRamp;
+    dsp::Ramp<float> bpfRamp;
+    dsp::Ramp<float> hpfRamp;
+
+    juce::AudioBuffer<float> freqInBuffer;
+    juce::AudioBuffer<float> resoInBuffer;
+    juce::AudioBuffer<float> lpfOutBuffer;
+    juce::AudioBuffer<float> bpfOutBuffer;
+    juce::AudioBuffer<float> hpfOutBuffer;
 
     dsp::StateVariableFilter svf;
 
