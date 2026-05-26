@@ -69,9 +69,10 @@ public:
     void process(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
     juce::AudioProcessorEditor* createEditor() override;
 
+    dsp::PitchDetector  pitchDetector;
+
 private:
     // Harmonizer
-    dsp::PitchDetector  pitchDetector;
     dsp::PSolaShifter   psolaShifter;
     dsp::rbuffer<float> ibuff;
 

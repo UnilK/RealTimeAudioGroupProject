@@ -2,6 +2,8 @@
 #include "PluginEditor.h"
 #include <algorithm>
 #include <cmath>
+
+#include "math/constants.h"
 #include "math/fft.h"
 
 static void modeMix(float mode, float& lpf, float& bpf, float& hpf)
@@ -104,6 +106,28 @@ void MainProcessor::prepare(double sampleRate, int samplesPerBlock)
 void MainProcessor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& /*midiMessages*/)
 {
     juce::ScopedNoDenormals noDenormals;
+
+    int n = buffer.getNumSamples();
+    int m = std::min(buffer.getNumChannels(), 2);
+    const float *x = buffer.getReadPointer(0);
+
+    float ifs = 1.0f / (float)getSampleRate();
+    static double phaseState = 0.0;
+
+    for(int i=0; i<n; i++){
+        ibuff.push(x[i]);
+        pitchDetector.update_period(&ibuff[0]);
+
+        if(pitchDetector.isVoiced){
+            phaseState = std::fmod(phaseState + pitchDetector.pitch * ifs * 2 * PI, 2 * PI);
+        }
+
+        float sample = std::max(-1.0f, std::min<float>(1.0f, std::sin(phaseState) * gain));
+
+        for(int j=0; j<m; j++) buffer.getWritePointer(j)[i] = sample;
+    }
+    /*
+    juce::ScopedNoDenormals noDenormals;
     const int    n = buffer.getNumSamples();
     const int    m = std::min(buffer.getNumChannels(), 2);
     const float* x = buffer.getReadPointer(0);
@@ -184,6 +208,7 @@ void MainProcessor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& 
         buffer.addFrom(ch, 0, bpfOutBuffer, ch, 0, n);
         buffer.addFrom(ch, 0, hpfOutBuffer, ch, 0, n);
     }
+    */
 
 }
 
