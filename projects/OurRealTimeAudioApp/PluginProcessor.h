@@ -81,7 +81,8 @@ private:
     float harmonyMix = 0.75f;
 
     // Filter
-    dsp::StateVariableFilter svf;
+    dsp::StateVariableFilter svfLeft;
+    dsp::StateVariableFilter svfRight;
 
     float mode   { 0.f };
     float reso   { 1.0f };
