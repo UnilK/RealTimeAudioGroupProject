@@ -47,15 +47,15 @@ void MainProcessorEditor::paint(juce::Graphics &g)
         int n = pd.ix.size();
         const auto height { pluginProcessor.getParameterManager().getParameters().size() * PARAM_HEIGHT };
         float wi = (float)PITCH_WIDTH / n;
-        float hi = height;
+        float hi = height * 0.5;
 
         juce::Path path;
         for(int i=1; i<n; i++){
             path.addLineSegment(juce::Line<float>(
                 (i-1) * wi + WIDTH,
-                pd.ix[i-1] * hi * 3 + height/2,
+                pd.ix[i-1] * hi + height/2,
                 i * wi + WIDTH, 
-                pd.ix[i] * hi * 3 + height/2), 2);
+                pd.ix[i] * hi + height/2), 2);
         }
 
         g.setColour(juce::Colour(0xFF3B7ABD));
@@ -66,15 +66,15 @@ void MainProcessorEditor::paint(juce::Graphics &g)
         int n = pd.iy.size();
         const auto height { pluginProcessor.getParameterManager().getParameters().size() * PARAM_HEIGHT };
         float wi = (float)PITCH_WIDTH / n;
-        float hi = height;
+        float hi = height * 0.5;
 
         juce::Path path;
         for(int i=1; i<n; i++){
             path.addLineSegment(juce::Line<float>(
                 (i-1) * wi + WIDTH,
-                pd.iy[i-1] * hi * 3 + height/4*3,
+                pd.iy[i-1] * hi + height/4*3,
                 i * wi + WIDTH, 
-                pd.iy[i] * hi * 3 + height/4*3), 1);
+                pd.iy[i] * hi + height/4*3), 1);
         }
 
         g.setColour(juce::Colour(0xFFCC321F));

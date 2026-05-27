@@ -99,7 +99,8 @@ void PitchDetector::update_period(const float* bufferCenter){
     float best = 1.0f;
     top = pop;
 
-    for(int i=0; i<=max; i++) mse[i] = x[i+2*pop] + (float)i / max * 0.1f;
+    constexpr float BIAS = 0.05f;
+    for(int i=0; i<=max; i++) mse[i] = x[i+2*pop] + (float)i / max * BIAS;
 
     for(int i=min+1; i+1<=max; i++){
         if(mse[i] < best && mse[i] < mse[i-1] && mse[i] < mse[i+1]){
@@ -116,14 +117,26 @@ void PitchDetector::update_period(const float* bufferCenter){
         stablePeriod = stablePeriod * decay + top * (1.0f - decay);
     }
 
-    int jumps = std::ceil(stablePeriod / (float)top);
-    float a = (jumps - 1) * top;
-    float b = jumps * top;
-    float da = a / stablePeriod;
-    float db = stablePeriod / b;
+    // int jumps = std::ceil(stablePeriod / (float)top);
+    // float a = (jumps - 1) * top;
+    // float b = jumps * top;
+    // float da = a / stablePeriod;
+    // float db = stablePeriod / b;
 
-    if(b >= max) period = a;
-    else period = da > db ? a : b;
+    // if(b >= max) period = a;
+    // else period = da > db ? a : b;
+
+    best = 1e9f;
+    for(int i=1; i<7; i++){
+        if(std::abs(stablePeriod - top * i) < best){
+            best = std::abs(stablePeriod - top * i);
+            period = top * i;
+        }
+        if(std::abs(stablePeriod - top / i) < best){
+            best = std::abs(stablePeriod - top / i);
+            period = top / i;
+        }
+    }
 
     best = 1.0f;
     int jmin = std::max(min+1, period-5);

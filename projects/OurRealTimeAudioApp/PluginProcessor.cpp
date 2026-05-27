@@ -79,7 +79,7 @@ MainProcessor::~MainProcessor() {}
 
 void MainProcessor::prepare(double sampleRate, int samplesPerBlock)
 {
-    pitchDetector.prepare({ .framerate = (float)sampleRate });
+    pitchDetector.prepare({ .framerate = (float)sampleRate, .halfTime = 0.05f });
     psolaShifter.prepare(sampleRate, 4096);
 
     int radius = pitchDetector.get_reguired_buffer_radius() + 1;
