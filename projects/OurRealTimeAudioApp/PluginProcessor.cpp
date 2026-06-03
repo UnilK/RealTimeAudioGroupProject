@@ -97,6 +97,8 @@ void MainProcessor::prepare(double sampleRate, int samplesPerBlock)
     freqRamp.prepare(sampleRate, true, freqHz);
     resoRamp.prepare(sampleRate, true, reso);
 
+    psolaBuffer.setSize(2, samplesPerBlock);
+
     freqInBuffer.setSize(1, samplesPerBlock);
     resoInBuffer.setSize(1, samplesPerBlock);
     lpfOutBuffer.setSize(2, samplesPerBlock);
@@ -136,6 +138,8 @@ void MainProcessor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& 
     const int    m = std::min(buffer.getNumChannels(), 2);
     const float* x = buffer.getReadPointer(0);
 
+    psolaBuffer.clear();
+
     // Harmonizer
     for (int i = 0; i < n; ++i)
     {
@@ -147,11 +151,11 @@ void MainProcessor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& 
         const float harmony = psolaShifter.process(
             dry, pitchShift, pitchDetector.period, pitchDetector.isVoiced);
 
-        const float mixed = (dry + harmonyMix * harmony) / (1.0f + harmonyMix);
-        const float out   = std::clamp(mixed * gain, -1.0f, 1.0f);
+        // const float mixed = (dry + harmonyMix * harmony) / (1.0f + harmonyMix);
+        const float out   = std::clamp(gain, -1.0f, 1.0f);
 
         for (int j = 0; j < m; ++j)
-            buffer.getWritePointer(j)[i] = out;
+            psolaBuffer.getWritePointer(j)[i] = out;
     }
 
     // Filter
@@ -167,7 +171,7 @@ void MainProcessor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& 
     svfLeft.process(lpfOutBuffer.getWritePointer(0),
                 bpfOutBuffer.getWritePointer(0),
                 hpfOutBuffer.getWritePointer(0),
-                buffer.getReadPointer(0),
+                psolaBuffer.getReadPointer(0),
                 freqInBuffer.getReadPointer(0),
                 resoInBuffer.getReadPointer(0),
                 n);
@@ -177,7 +181,7 @@ void MainProcessor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& 
         svfRight.process(lpfOutBuffer.getWritePointer(1),
                          bpfOutBuffer.getWritePointer(1),
                          hpfOutBuffer.getWritePointer(1),
-                         buffer.getReadPointer(1),
+                         psolaBuffer.getReadPointer(1),
                          freqInBuffer.getReadPointer(0),
                          resoInBuffer.getReadPointer(0),
                          n);
@@ -186,12 +190,25 @@ void MainProcessor::process(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& 
     lpfRamp.applyGain(lpfOutBuffer.getArrayOfWritePointers(), m, n);
     bpfRamp.applyGain(bpfOutBuffer.getArrayOfWritePointers(), m, n);
     hpfRamp.applyGain(hpfOutBuffer.getArrayOfWritePointers(), m, n);
-    buffer.clear();
+    psolaBuffer.clear();
     for (int ch = 0; ch < m; ++ch)
     {
-        buffer.addFrom(ch, 0, lpfOutBuffer, ch, 0, n);
-        buffer.addFrom(ch, 0, bpfOutBuffer, ch, 0, n);
-        buffer.addFrom(ch, 0, hpfOutBuffer, ch, 0, n);
+        psolaBuffer.addFrom(ch, 0, lpfOutBuffer, ch, 0, n);
+        psolaBuffer.addFrom(ch, 0, bpfOutBuffer, ch, 0, n);
+        psolaBuffer.addFrom(ch, 0, hpfOutBuffer, ch, 0, n);
+    }
+
+    for (int i = 0; i < n; ++i)
+    {
+        const float dry = x[i];
+
+        const float harmony = psolaBuffer.getWritePointer(0)[i];
+
+        const float mixed = (dry + harmonyMix * harmony) / (1.0f + harmonyMix);
+        const float out   = std::clamp(mixed * gain, -1.0f, 1.0f);
+
+        for (int j = 0; j < m; ++j)
+            buffer.getWritePointer(j)[i] = out;
     }
 }
 

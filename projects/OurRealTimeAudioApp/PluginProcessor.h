@@ -94,6 +94,8 @@ private:
     dsp::Ramp<float> bpfRamp;
     dsp::Ramp<float> hpfRamp;
 
+    juce::AudioBuffer<float> psolaBuffer;
+
     juce::AudioBuffer<float> freqInBuffer;
     juce::AudioBuffer<float> resoInBuffer;
     juce::AudioBuffer<float> lpfOutBuffer;

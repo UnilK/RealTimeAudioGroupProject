@@ -132,7 +132,7 @@ float PSolaShifter::process(float input, float pitchShift, int period, bool voic
     // Smooth crossfade between dry (unvoiced) and harmony (voiced).
     const float targetVoice = voiced ? 1.0f : 0.0f;
     voiceStrength += (targetVoice - voiceStrength) * 0.005f;
-    return voiceStrength * out + (1.0f - voiceStrength) * input;
+    return /* voiceStrength * */ out; // + (1.0f - voiceStrength) * input;
 }
 
 } // namespace dsp
